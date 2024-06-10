@@ -33,8 +33,9 @@ export struct Goods{
   @State private inputPage:string='';
   @State private displayItems: Item_Brief[]=[];
   @State private curClass:Medicine_Class=Medicine_Class.All;
-  @Prop username:string;
+  @Prop private username:string;
   @Link private totalCost:number;
+  @Link private MAX_ITEMS_NUM:number;
 
   aboutToAppear() {
     this.setMAX_PAGE();
@@ -110,7 +111,8 @@ export struct Goods{
                       MEDICINE_NAME:item.MEDICINE_NAME as string,
                       MEDICINE_PRICE:item.MEDICINE_PRICE as number,
                       username:this.username,
-                      totalCost:$totalCost})
+                      totalCost:$totalCost,
+                      MAX_ITEMS_NUM:$MAX_ITEMS_NUM})
                   }.title('返回').height('100%').width('100%').backgroundColor(Color.White)
                 }
               }.width('100%')
