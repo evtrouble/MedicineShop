@@ -10,6 +10,7 @@ struct BuyDialog {
   @Prop username:string;
   @Link MEDICINE_STOCK:number;
   @Link private totalCost:number;
+  @Link private MAX_ITEMS_NUM:number;
 
   controller?: CustomDialogController
   // 若尝试在CustomDialog中传入多个其他的Controller，以实现在CustomDialog中打开另一个或另一些CustomDialog，
@@ -68,6 +69,7 @@ export struct Item_Detailed_Show{
   @State MEDICINE_STOCK:number=0;
   @State MEDICINE_DESCRIPTION:string='';
   @State inputValue: string='0';
+  @Link private MAX_ITEMS_NUM:number;
 
   dialogController: CustomDialogController = new CustomDialogController({
     builder: BuyDialog({
@@ -78,7 +80,8 @@ export struct Item_Detailed_Show{
       MEDICINE_NAME:this.MEDICINE_NAME,
       username:this.username,
       MEDICINE_STOCK:$MEDICINE_STOCK,
-      totalCost:$totalCost
+      totalCost:$totalCost,
+      MAX_ITEMS_NUM:$MAX_ITEMS_NUM
     }),
     cancel: this.exitApp,
     autoCancel: true,
@@ -114,17 +117,15 @@ export struct Item_Detailed_Show{
           if(buyNumber > this.MEDICINE_STOCK)Info('购买的数量超过库存');
           else{
               await new Promise<void>((resolve) => {
-                let predicates = new relationalStore.RdbPredicates('Medicine');
-                predicates.equalTo('MEDICINE_NAME',this.MEDICINE_NAME);
-                Medicine_DB.update(predicates,{MEDICINE_STOCK:this.MEDICINE_STOCK-buyNumber});
-               // Medicine_DB.executeSql('update', `UPDATE Medicine SET MEDICINE_STOCK
-               // = MEDICINE_STOCK - ${buyNumber} WHERE MEDICINE_NAME = '
-              //${this.MEDICINE_NAME}'`);
+                Medicine_DB.executeSql('update', `UPDATE Medicine SET MEDICINE_STOCK =
+                 MEDICINE_STOCK - ${buyNumber} WHERE MEDICINE_NAME =
+                 '${this.MEDICINE_NAME}'`);
                 resolve();
             }).then(()=>{
-                Info('加入购物车成功')
+                Info('加入购物车成功');
                 this.MEDICINE_STOCK-=buyNumber;
                 this.totalCost+=buyNumber*this.MEDICINE_PRICE;
+                this.MAX_ITEMS_NUM+=buyNumber;
                 Medicine_DB.insert('ShopCart',{MEDICINE_NAME:this.MEDICINE_NAME,
                   CURRENT_PRICE:this.MEDICINE_PRICE,
                   USERNAME:this.username,
