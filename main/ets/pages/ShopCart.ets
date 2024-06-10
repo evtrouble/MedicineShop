@@ -21,16 +21,16 @@ export class ShopCart_Item{
   }
 }
 
-const Item_NUM_PAGE : number = 10;
+export const Item_NUM_PAGE : number = 10;
 
 @Component
 export struct ShopCart{
   @Prop private username:string;
-  @State private CurrentPage : number=1;
-  @State private MAX_ITEMS_NUM:number=0;
-  @State private MAX_PAGE:number=1;
+  @Link private CurrentPage : number;
+  @Link private MAX_ITEMS_NUM:number;
+  @Link private MAX_PAGE:number;
   @State private inputPage:string='';
-  @State private displayItems: ShopCart_Item[]=[];
+  @Link private displayItems: ShopCart_Item[];
   @Link private totalCost:number;
   @Watch('onEditModeChange') @State private isEditMode:boolean=false;
   @State private selectedItems: ShopCart_Item[]=[];
@@ -41,79 +41,10 @@ export struct ShopCart{
     }
   }
 
-  aboutToDisappear() {
-    this.displayItems=[];
+  autoChangePageUpdate: () => void = () => {
   }
 
-  aboutToAppear(){
-    this.totalCost=0;
-    for(let i=0;i<Item_NUM_PAGE;i++)this.displayItems[i]=new ShopCart_Item();
-
-    let predicates = new relationalStore.RdbPredicates('ShopCart');
-    predicates.equalTo('USERNAME',this.username);
-    Medicine_DB.query(predicates,['NUMBER', 'CURRENT_PRICE'],
-      (resultSet:relationalStore.ResultSet)=>{
-        this.MAX_ITEMS_NUM = resultSet.rowCount;
-        this.MAX_PAGE = Math.max(Math.ceil(this.MAX_ITEMS_NUM/Item_NUM_PAGE),1);
-        resultSet.goToFirstRow();
-        for(let i=0;i<resultSet.rowCount;i++){
-          this.totalCost+=(resultSet.getDouble(resultSet.getColumnIndex('CURRENT_PRICE'))*
-          resultSet.getLong(resultSet.getColumnIndex('NUMBER')));
-          resultSet.goToNextRow();
-        }
-        resultSet.close();
-      })
-    this.autoChangePageUpdate();
-  }
-
-  autoChangePageUpdate() {
-    let predicates = new relationalStore.RdbPredicates('ShopCart');
-    predicates.equalTo('USERNAME',this.username);
-    predicates.limitAs(Item_NUM_PAGE).offsetAs((this.CurrentPage-1)*Item_NUM_PAGE);
-    Medicine_DB.query(predicates,['MEDICINE_NAME','CURRENT_PRICE','ID', 'NUMBER'],
-      async (resultSet:relationalStore.ResultSet):Promise<void> =>{
-        resultSet.goToFirstRow();
-        for(let i=0;i<Item_NUM_PAGE;i++){
-          if(i<resultSet.rowCount){
-            await new Promise<void>((resolve) => {
-              this.getImage(resultSet.getString(resultSet.getColumnIndex('MEDICINE_NAME')), i);
-              resolve();
-            });
-            this.displayItems[i].MEDICINE_NAME=resultSet.getString(resultSet.getColumnIndex('MEDICINE_NAME'));
-            this.displayItems[i].CURRENT_PRICE=resultSet.getDouble(resultSet.getColumnIndex('CURRENT_PRICE'))
-            this.displayItems[i].ID=resultSet.getLong(resultSet.getColumnIndex('ID'));
-            this.displayItems[i].NUMBER=resultSet.getLong(resultSet.getColumnIndex('NUMBER'));
-            //let image:string=this.displayItems[i].MEDICINE_IMAGE;
-
-            //this.displayItems[i]=new ShopCart_Item(resultSet.getString(resultSet.getColumnIndex('MEDICINE_NAME')),
-            //  resultSet.getDouble(resultSet.getColumnIndex('CURRENT_PRICE')),image,
-            //  resultSet.getLong(resultSet.getColumnIndex('ID')),
-            //    resultSet.getLong(resultSet.getColumnIndex('NUMBER')));
-           // this.displayItems[i]=this.displayItems[i];
-
-            resultSet.goToNextRow();
-          } else this.displayItems[i]=new ShopCart_Item();
-        }
-        resultSet.close();
-      });
-    for(let i=0;i<Item_NUM_PAGE;i++) {
-      this.displayItems[i] = new ShopCart_Item(this.displayItems[i].MEDICINE_NAME,
-        this.displayItems[i].CURRENT_PRICE,
-        this.displayItems[i].MEDICINE_IMAGE,
-        this.displayItems[i].ID,
-        this.displayItems[i].NUMBER);
-    }
-  }
-
-  getImage(name:string, id:number){
-    let predicates = new relationalStore.RdbPredicates('Medicine');
-    predicates.equalTo('MEDICINE_NAME',name);
-    Medicine_DB.query(predicates,['MEDICINE_IMAGE'],
-      (resultSet:relationalStore.ResultSet)=>{
-        resultSet.goToFirstRow();
-        this.displayItems[id].MEDICINE_IMAGE=resultSet.getString(resultSet.getColumnIndex('MEDICINE_IMAGE'));
-        resultSet.close();
-      })
+  getImage:(name:string, id:number) => void = (name:string, id:number) => {
   }
 
   build() {
@@ -149,9 +80,12 @@ export struct ShopCart{
                     Item_Detailed_Show({ MEDICINE_IMAGE:item.MEDICINE_IMAGE as string,
                       MEDICINE_NAME:item.MEDICINE_NAME as string,
                       username:this.username,
-                      totalCost:$totalCost})
+                      totalCost:$totalCost,
+                      MAX_ITEMS_NUM:$MAX_ITEMS_NUM})
                   }.title('返回').height('100%').width('100%').backgroundColor(Color.White)
-
+                  .onAreaChange(()=>{
+                    this.autoChangePageUpdate();
+                  })
                 } .enabled(!this.isEditMode)
               }.width('100%').onClick(()=> {
                 if(this.isEditMode){
@@ -244,11 +178,11 @@ export struct ShopCart{
           }.width('100%').height('10%')
         }
       }else{
-        Text('暂无购买商品相关信息').position({ x: 0, y: '30%' }).fontSize(30)
+        Text('暂无购买商品相关信息').padding({top:'30%'}).fontSize(30)
           .width('100%').textAlign(TextAlign.Center)
       }
 
-    }.padding(10)
+    }.padding(10).width('100%').height('100%')
 
   }
 }
