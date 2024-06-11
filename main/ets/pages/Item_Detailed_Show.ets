@@ -4,13 +4,13 @@ import {Info} from '../pages/Register';
 
 @CustomDialog
 struct BuyDialog {
-  @Link inputValue: string;
-  @Link MEDICINE_PRICE: number;
-  @Prop MEDICINE_NAME:string;
-  @Prop username:string;
-  @Link MEDICINE_STOCK:number;
+  @Link private MEDICINE_PRICE: number;
+  @Prop private MEDICINE_NAME:string;
+  @Prop private username:string;
+  @Link private MEDICINE_STOCK:number;
   @Link private totalCost:number;
   @Link private MAX_ITEMS_NUM:number;
+  @Link private buyNumber:number;
 
   controller?: CustomDialogController
   // 若尝试在CustomDialog中传入多个其他的Controller，以实现在CustomDialog中打开另一个或另一些CustomDialog，
@@ -21,21 +21,26 @@ struct BuyDialog {
   }
 
   aboutToDisappear() {
-    this.inputValue='0';// 将dialogController置空
+    this.buyNumber=0;// 将dialogController置空
   }
 
   build() {
     Column({space:10}) {
       Text('加入购物车').fontSize(20).margin({ top: 10, bottom: 10 })
-      Text(`总计：${Number(this.inputValue)*this.MEDICINE_PRICE}元`)
+      Text(`总计：${this.buyNumber*this.MEDICINE_PRICE}元`)
       Row({space:10}){
-        Text('请输入要购买的数量').fontSize(16).margin({ bottom: 10 })
-        TextInput({ placeholder: '0'})
-          .height(30).width('30%').type(InputType.Number)
+        Text('请输入要购买的数量').fontSize(16).margin({ bottom: 10})
+        Button('-').onClick(()=>{
+          if(this.buyNumber)this.buyNumber--;
+        })
+        TextInput({ text: String(this.buyNumber)})
+          .height(30).width('20%').type(InputType.Number)
           .onChange((value: string) => {
-            this.inputValue = value;
+            this.buyNumber = Number(value);
           })
-
+        Button('+').onClick(()=>{
+          if(this.buyNumber<this.MEDICINE_STOCK)this.buyNumber++;
+        })
       }
 
       Flex({ justifyContent: FlexAlign.SpaceAround }) {
@@ -60,28 +65,28 @@ struct BuyDialog {
 
 @Component
 export struct Item_Detailed_Show{
-  @Prop MEDICINE_NAME:string;
-  @Prop username:string;
+  @Prop private MEDICINE_NAME:string;
+  @Prop private username:string;
   @Link private totalCost:number;
 
-  @State MEDICINE_PRICE:number=0;
-  @Prop MEDICINE_IMAGE:string;
-  @State MEDICINE_STOCK:number=0;
-  @State MEDICINE_DESCRIPTION:string='';
-  @State inputValue: string='0';
+  @State private MEDICINE_PRICE:number=0;
+  @Prop private MEDICINE_IMAGE:string;
+  @State private MEDICINE_STOCK:number=0;
+  @State private MEDICINE_DESCRIPTION:string='';
   @Link private MAX_ITEMS_NUM:number;
+  @State private buyNumber:number=0;
 
   dialogController: CustomDialogController = new CustomDialogController({
     builder: BuyDialog({
       cancel: this.onCancel,
       confirm: this.onAccept,
-      inputValue: $inputValue,
       MEDICINE_PRICE:$MEDICINE_PRICE,
       MEDICINE_NAME:this.MEDICINE_NAME,
       username:this.username,
       MEDICINE_STOCK:$MEDICINE_STOCK,
       totalCost:$totalCost,
-      MAX_ITEMS_NUM:$MAX_ITEMS_NUM
+      MAX_ITEMS_NUM:$MAX_ITEMS_NUM,
+      buyNumber:$buyNumber
     }),
     cancel: this.exitApp,
     autoCancel: true,
@@ -94,7 +99,7 @@ export struct Item_Detailed_Show{
   // 在自定义组件即将析构销毁时将dialogControlle置空
   aboutToDisappear() {
     this.dialogController = null;
-    this.inputValue='0';// 将dialogController置空
+    this.buyNumber=0;// 将dialogController置空
   }
 
   onCancel() {
@@ -103,10 +108,8 @@ export struct Item_Detailed_Show{
 
   onAccept() {
     console.info('Callback when the second button is clicked')
-    if(this.inputValue=='')Info('购买数量不能为空')
-    else if(this.inputValue=='0')Info('购买数量不能为0')
+    if(this.buyNumber==0)Info('购买数量不能为0')
     else {
-      let buyNumber:number = Number(this.inputValue);
       let predicates = new relationalStore.RdbPredicates('Medicine');
       predicates.equalTo('MEDICINE_NAME',this.MEDICINE_NAME)
       Medicine_DB.query(predicates,['MEDICINE_STOCK', 'MEDICINE_PRICE'],
@@ -114,22 +117,22 @@ export struct Item_Detailed_Show{
           resultSet.goToFirstRow();
           this.MEDICINE_STOCK=resultSet.getLong(resultSet.getColumnIndex('MEDICINE_STOCK'));
           this.MEDICINE_PRICE=resultSet.getDouble(resultSet.getColumnIndex('MEDICINE_PRICE'));
-          if(buyNumber > this.MEDICINE_STOCK)Info('购买的数量超过库存');
+          if(this.buyNumber > this.MEDICINE_STOCK)Info('购买的数量超过库存');
           else{
               await new Promise<void>((resolve) => {
                 Medicine_DB.executeSql('update', `UPDATE Medicine SET MEDICINE_STOCK =
-                 MEDICINE_STOCK - ${buyNumber} WHERE MEDICINE_NAME =
+                 MEDICINE_STOCK - ${this.buyNumber} WHERE MEDICINE_NAME =
                  '${this.MEDICINE_NAME}'`);
                 resolve();
             }).then(()=>{
                 Info('加入购物车成功');
-                this.MEDICINE_STOCK-=buyNumber;
-                this.totalCost+=buyNumber*this.MEDICINE_PRICE;
-                this.MAX_ITEMS_NUM+=buyNumber;
+                this.MEDICINE_STOCK-=this.buyNumber;
+                this.totalCost+=this.buyNumber*this.MEDICINE_PRICE;
+                this.MAX_ITEMS_NUM+=this.buyNumber;
                 Medicine_DB.insert('ShopCart',{MEDICINE_NAME:this.MEDICINE_NAME,
                   CURRENT_PRICE:this.MEDICINE_PRICE,
                   USERNAME:this.username,
-                  NUMBER:buyNumber});
+                  NUMBER:this.buyNumber});
               });
             }
           resultSet.close();
